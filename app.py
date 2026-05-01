@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 # ================= CONFIG =================
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"   # 🔹 Get this from @BotFather on Telegram
+BOT_TOKEN = "8705048790:AAFH67hJcn1uLNc2OxL4TIk1xD46zVDny0A"   # 🔹 Get this from @BotFather on Telegram
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
