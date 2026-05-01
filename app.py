@@ -10,7 +10,7 @@ logging.getLogger('yt-dlp').disabled = True
 app = Flask(__name__)
 
 # 2. Get your bot token from Railway's environment variables
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = "8705048790:AAFH67hJcn1uLNc2OxL4TIk1xD46zVDny0A"
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set on Railway!")
 
