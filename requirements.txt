@@ -1,5 +1,2 @@
-fastapi
-uvicorn[standard]
-yt-dlp
-ffmpeg
-pydantic
+yt-dlp>=2025.3.21
+python-telegram-bot>=20.0
