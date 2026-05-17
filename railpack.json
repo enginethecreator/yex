@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "packages": {
+    "python": "3.11"
+  },
+  "deploy": {
+    "aptPackages": [
+      "build-essential",
+      "libtorrent-dev"
+    ],
+    "startCommand": "python app.py"
+  }
+}
