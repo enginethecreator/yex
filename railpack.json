@@ -5,8 +5,7 @@
   },
   "deploy": {
     "aptPackages": [
-      "build-essential",
-      "libtorrent-dev"
+      "aria2"
     ],
     "startCommand": "python app.py"
   }
