@@ -1,40 +1,57 @@
 import os
-import asyncio
+import subprocess
 import threading
-import traceback
+import time
+import json
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 import uvicorn
-
-from torrentp import TorrentDownloader
 
 app = FastAPI(title="Cloud Torrent Downloader")
 
 # Safe, absolute path to the downloads folder
 DOWNLOAD_DIR = Path(__file__).resolve().parent / "downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-os.chmod(DOWNLOAD_DIR, 0o777)  # ensure write permissions
+os.chmod(DOWNLOAD_DIR, 0o777)
 
-# Keep track of active downloads simply for logging/status
+# Track active downloads for simple status
 active_downloads = {}
 
 # ---------------------------------------------------------------------------
-# Background worker – downloads the torrent and prints detailed logs
+# Background worker – uses aria2c (lightweight, handles magnets perfectly)
 # ---------------------------------------------------------------------------
-def run_torrent_async(magnet_or_url: str, download_id: str):
-    print(f"[{download_id}] Starting download for: {magnet_or_url}")
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+def run_aria2(magnet_or_url: str, download_id: str):
+    print(f"[{download_id}] Starting aria2c download: {magnet_or_url}")
+    # aria2c options:
+    #   --dir: save directly to DOWNLOAD_DIR (no sub-folder by torrent name)
+    #   --seed-time=0: stop immediately after download completes
+    #   --quiet: less output
+    #   --allow-overwrite=true: overwrite if file exists
+    #   --bt-save-metadata=true: keep the .torrent file (optional)
+    cmd = [
+        "aria2c",
+        "--dir", str(DOWNLOAD_DIR),
+        "--seed-time=0",
+        "--quiet",
+        "--allow-overwrite=true",
+        magnet_or_url,
+    ]
     try:
-        downloader = TorrentDownloader(magnet_or_url, str(DOWNLOAD_DIR))
-        active_downloads[download_id] = "downloading"
-        print(f"[{download_id}] Download in progress...")
-        loop.run_until_complete(downloader.start_download())
+        # Run the command in a blocking subprocess
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600,   # 1 hour timeout
+        )
+        print(f"[{download_id}] aria2c finished with return code {result.returncode}")
+        if result.stderr:
+            print(f"[{download_id}] aria2c stderr: {result.stderr}")
 
-        # Find the newest file – the one just created by the torrent
+        # Find the newest file – the one just created by aria2c
         all_files = sorted(
             DOWNLOAD_DIR.iterdir(),
             key=lambda f: f.stat().st_ctime,
@@ -45,12 +62,10 @@ def run_torrent_async(magnet_or_url: str, download_id: str):
             print(f"[{download_id}] Download completed. File saved as: {newest.name}")
             active_downloads[download_id] = "completed"
         else:
-            print(f"[{download_id}] Download finished but no file found.")
+            print(f"[{download_id}] Download finished but no file found in {DOWNLOAD_DIR}")
             active_downloads[download_id] = "error: no file found"
     except Exception as e:
-        err_msg = traceback.format_exc()
         print(f"[{download_id}] ERROR: {type(e).__name__}: {e}")
-        print(err_msg)
         active_downloads[download_id] = f"error: {e}"
 
 # ---------------------------------------------------------------------------
@@ -93,14 +108,10 @@ async function startDownload() {
     });
     const data = await res.json();
     if (data.status === "started") {
-        document.getElementById("status").innerText = "Download started. The file list will refresh automatically every 3 seconds.";
+        document.getElementById("status").innerText = "Download started. The file list refreshes automatically every 3 seconds.";
         // Poll file list every 3 seconds
-        const interval = setInterval(async () => {
-            await loadFileList();
-            // If a download completed recently, we could stop polling, but let's keep it simple
-        }, 3000);
-        // Store interval ID to clear later if needed (optional)
-        window.pollInterval = interval;
+        if (window.pollInterval) clearInterval(window.pollInterval);
+        window.pollInterval = setInterval(loadFileList, 3000);
     } else {
         document.getElementById("status").innerText = "Error: " + (data.error || "Unknown");
     }
@@ -145,11 +156,11 @@ async def start_download(torrent_url: str = Form(...)):
     if not torrent_url:
         return JSONResponse({"error": "No link provided"}, status_code=400)
 
-    download_id = uuid.uuid4().hex[:8]  # short ID for logs
+    download_id = uuid.uuid4().hex[:8]
     active_downloads[download_id] = "starting"
 
     thread = threading.Thread(
-        target=run_torrent_async, args=(torrent_url, download_id), daemon=True
+        target=run_aria2, args=(torrent_url, download_id), daemon=True
     )
     thread.start()
 
